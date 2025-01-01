@@ -3,45 +3,48 @@
 from svgpathtools import Path
 import pyclipper
 import svgwrite
-
 import utils.svg_utils as svg_utils
 
-def get_difference_path(path1 : Path, path2 : Path) -> Path:
-    poly1 = svg_utils.svg_path_to_polygon(path1)
-    poly2 = svg_utils.svg_path_to_polygon(path2)
-    
+def get_difference_paths(subject_path : Path, clip_paths : list[Path]) -> list[Path]:
+    subj_poly = svg_utils.svg_path_to_polygon(subject_path)
+    clip_polys = [svg_utils.svg_path_to_polygon(path) for path in clip_paths]
     pc = pyclipper.Pyclipper()
-    pc.AddPath(poly1, pyclipper.PT_SUBJECT, True)
-    pc.AddPath(poly2, pyclipper.PT_CLIP, True)
-    difference = pc.Execute(pyclipper.CT_DIFFERENCE)
-    return svg_utils.polygon_to_svg_path(difference[0]) if difference else None
+    difference_polygons = [subj_poly]
+    for poly in clip_polys:
+        pc.Clear()
+        for polysubj in difference_polygons:
+            pc.AddPath(polysubj, pyclipper.PT_SUBJECT, True)
+        pc.AddPath(poly, pyclipper.PT_CLIP, True)
+        difference_polygons = pc.Execute(pyclipper.CT_DIFFERENCE)
+    difference_paths = [svg_utils.polygon_to_svg_path(poly) for poly in difference_polygons]
+    return difference_paths
 
-def get_difference_path_from_files(svg_file1, svg_file2, output_file):
+def get_difference_paths_from_files(subject_svg_file, clip_svg_files : list[str], output_file : str):
     # Load SVG paths from files
-    file1_paths, file1_attributes = svg_utils.load_svg_paths_from_file(svg_file1)
-    file2_paths, _ = svg_utils.load_svg_paths_from_file(svg_file2)
+    subject_file_paths, subject_file_attributes = svg_utils.load_svg_paths_from_file(subject_svg_file)
+    clip_file_paths = []
+    for file in clip_svg_files:
+        file_paths,_ =svg_utils.load_svg_paths_from_file(file)
+        clip_file_paths += file_paths
 
-    # Currently assumes single path per file
-    file1_path = file1_paths[0]
-    file2_path = file2_paths[0]
-
-    # Get the difference path
-    difference_path = get_difference_path(file1_path, file2_path)
-
-    if difference_path:
-        new_attributes = file1_attributes
-        new_attributes[0] = [{k: file1_attributes[0][0][k] for k in ("style",)}]
-        # Draw and save the result as a new SVG file
-        # new_attributes = {'style': file1_attributes[1].at('style')}
-        svg_utils.save_svg_paths_to_file([difference_path], output_file, new_attributes)
+    # get the difference paths
+    difference_paths = []
+    for subj_path in subject_file_paths:
+        difference_paths += get_difference_paths(subj_path, clip_file_paths)
+        
+    if difference_paths:
+        # new_attributes = subject_file_attributes
+        # new_attributes[0] = [{k: subject_file_attributes[0][0][k] for k in ("style",)}]
+        svg_utils.save_svg_paths_to_file(difference_paths, output_file)
     else:
         print("No difference found between the paths.")
 
 def test():
-    test_svg_file1='./geometric_operations/test_files/test_1.svg'
-    test_svg_file2='./geometric_operations/test_files/test_2.svg'
+    subject_svg_file = './geometric_operations/test_files/test_1.svg'
+    clip_svg_files = ['test_2.svg', 'test_3.svg', 'test_4.svg']
+    clip_svg_files = ['./geometric_operations/test_files/' + file for file in clip_svg_files]
     test_output_file='difference_test_result.svg'
-    get_difference_path_from_files(test_svg_file1, test_svg_file2, test_output_file)
+    get_difference_paths_from_files(subject_svg_file, clip_svg_files, test_output_file)
 
 if __name__ == '__main__':
     test()
