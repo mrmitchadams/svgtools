@@ -21,7 +21,7 @@ def svg_path_to_polygon(svg_path : Path):
         if isinstance(segment, Line):
             if hasattr(segment, 'start'):
                 points.append((segment.start.real, segment.start.imag))
-        if isinstance(segment, Arc):
+        if isinstance(segment, Arc): # todo: find a better way to handle arcs. We lose arc info, resulting in arcs becoming "choppy"
             RESOLUTION = 0.1 #todo: parameterize
             num_pts = int(segment.length() / RESOLUTION)
             if num_pts < 2:
